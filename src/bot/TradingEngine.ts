@@ -318,6 +318,28 @@ export class TradingEngine {
       
       if (now >= this.currentMarketEndTime) {
         console.log('\n🔄 当前市场已结束，恢复市场扫描以监控下一个市场');
+        
+        // Cancel all unfilled orders before switching markets
+        if (this.activeOrders.size > 0) {
+          console.log(`\n🛑 市场已结束，取消 ${this.activeOrders.size} 个未完全成交的订单...`);
+          
+          for (const [orderId, order] of this.activeOrders) {
+            // Only cancel if not fully filled
+            if (order.status !== 'FILLED') {
+              const result = await this.client.cancelOrder(orderId);
+              if (result.success) {
+                console.log(`   ✅ 已取消订单: ${orderId.substring(0, 16)}...`);
+              } else {
+                console.log(`   ⚠️ 取消失败: ${orderId.substring(0, 16)}... - ${result.message}`);
+              }
+            }
+          }
+          
+          // Clear all active orders
+          this.activeOrders.clear();
+          console.log(`✅ 所有订单已处理，订单追踪队列已清空`);
+        }
+        
         this.marketScanningPaused = false;
         this.currentMarketEndTime = undefined;
         this.currentMarketSlug = undefined;

@@ -562,6 +562,34 @@ export class PolymarketClient {
     }
   }
 
+  /**
+   * Cancel an order
+   */
+  async cancelOrder(orderId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log(`🔄 正在取消订单: ${orderId.substring(0, 16)}...`);
+      
+      // Use CLOB client to cancel the order
+      await (this.clobClient as any).cancelOrder({ id: orderId });
+      
+      console.log(`✅ 订单已取消: ${orderId.substring(0, 16)}...`);
+      return { success: true, message: '订单已成功取消' };
+    } catch (error: any) {
+      // Handle various error cases
+      if (error.response && error.response.status === 404) {
+        // Order not found or already cancelled/completed
+        console.log(`⚠️ 订单不存在或已完成: ${orderId.substring(0, 16)}...`);
+        return { success: false, message: '订单不存在或已完成' };
+      } else if (error.response && error.response.status === 401) {
+        console.error(`❌ 取消订单认证失败: ${orderId.substring(0, 16)}...`);
+        return { success: false, message: '认证失败' };
+      } else {
+        console.error(`❌ 取消订单失败: ${orderId.substring(0, 16)}...`, error.message);
+        return { success: false, message: error.message || '未知错误' };
+      }
+    }
+  }
+
 
   /**
    * Get wallet address
