@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polymarket Trading Bot - Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <header>
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">🤖</div>
+        <h1>Polymarket Trading Bot</h1>
+      </div>
+      <div class="status-badge">
+        <span class="status-indicator" id="statusIndicator"></span>
+        <span id="statusText">Initializing...</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Trades</div>
+        <div class="stat-value" id="totalTrades">0</div>
+        <div class="stat-change">All time</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Successful Trades</div>
+        <div class="stat-value" id="successfulTrades" style="color: var(--success)">0</div>
+        <div class="stat-change">Success rate: <span id="successRate">0%</span></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Auto Trading</div>
+        <div class="stat-value" id="autoTradingStatus">
+          <span style="font-size: 1.5rem">⚠️</span>
+        </div>
+        <div class="stat-change" id="autoTradingText">Disabled</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Wallet Address</div>
+        <div class="stat-value" id="walletAddress" style="font-size: 1rem; word-break: break-all;">-</div>
+        <div class="stat-change">Connected</div>
+      </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">⚙️ Bot Configuration</h2>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div>
+          <div class="stat-label">Trade Size</div>
+          <div style="font-size: 1.25rem; font-weight: 600;" id="tradeSize">-</div>
+        </div>
+        <div>
+          <div class="stat-label">Probability Threshold</div>
+          <div style="font-size: 1.25rem; font-weight: 600;" id="probabilityThreshold">-</div>
+        </div>
+        <div>
+          <div class="stat-label">Polling Interval</div>
+          <div style="font-size: 1.25rem; font-weight: 600;" id="pollingInterval">-</div>
+        </div>
+        <div>
+          <div class="stat-label">Chain</div>
+          <div style="font-size: 1.25rem; font-weight: 600;" id="chainId">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Orders (Awaiting Confirmation) -->
+    <div class="card" id="pendingOrdersCard" style="display: none;">
+      <div class="card-header">
+        <h2 class="card-title">⏳ 待确认订单</h2>
+        <div class="card-action" onclick="refreshPendingOrders()">🔄 刷新</div>
+      </div>
+      <div id="pendingOrdersContainer">
+        <div class="empty-state">
+          <div class="empty-state-icon">✅</div>
+          <p>暂无待确认订单</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Orders (Tracking) -->
+    <div class="card" id="activeOrdersCard" style="display: none;">
+      <div class="card-header">
+        <h2 class="card-title">🔍 活跃订单追踪</h2>
+        <div class="card-action" onclick="refreshActiveOrders()">🔄 刷新</div>
+      </div>
+      <div id="activeOrdersContainer">
+        <div class="empty-state">
+          <div class="empty-state-icon">✅</div>
+          <p>暂无活跃订单</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Markets -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">📊 Active Markets (High Probability)</h2>
+        <div class="card-action" onclick="refreshMarkets()">🔄 Refresh</div>
+      </div>
+      <div id="marketsContainer">
+        <div class="empty-state">
+          <div class="empty-state-icon">📈</div>
+          <p>Loading markets...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trade Log -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">📝 Trade History</h2>
+        <div class="card-action" onclick="refreshTrades()">🔄 Refresh</div>
+      </div>
+      <div id="tradeLogContainer" class="trade-log">
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <p>No trades yet</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
