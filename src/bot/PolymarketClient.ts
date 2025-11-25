@@ -140,21 +140,21 @@ export class PolymarketClient {
       }
 
       // Fetch real-time prices for all tokens in the filtered markets
-      console.log(`🔍 DEBUG: markets.length = ${markets.length}`);
+      // console.log(`🔍 DEBUG: markets.length = ${markets.length}`);
       if (markets.length > 0) {
         const allTokenIds = markets.flatMap(m => m.tokens.map(t => t.token_id));
-        console.log(`🔍 DEBUG: allTokenIds.length = ${allTokenIds.length}`);
-        console.log(`🔍 DEBUG: allTokenIds = ${JSON.stringify(allTokenIds)}`);
+        // console.log(`🔍 DEBUG: allTokenIds.length = ${allTokenIds.length}`);
+        // console.log(`🔍 DEBUG: allTokenIds = ${JSON.stringify(allTokenIds)}`);
         if (allTokenIds.length > 0) {
-          console.log(`🔄 正在获取 ${allTokenIds.length} 个 Token 的实时价格...`);
+          // console.log(`🔄 正在获取 ${allTokenIds.length} 个 Token 的实时价格...`);
           const realtimePrices = await this.fetchBulkPrices(allTokenIds);
-          console.log(`🔍 DEBUG: realtimePrices.size = ${realtimePrices.size}`);
+          // console.log(`🔍 DEBUG: realtimePrices.size = ${realtimePrices.size}`);
           
           for (const market of markets) {
-            console.log(`🔍 DEBUG: 更新市场价格: ${market.question}`);
+            // console.log(`🔍 DEBUG: 更新市场价格: ${market.question}`);
             this.updateMarketPrices(market, realtimePrices);
           }
-          console.log(`✅ 已更新实时价格`);
+          // console.log(`✅ 已更新实时价格`);
         }
       }
 
@@ -521,7 +521,13 @@ export class PolymarketClient {
         sizeRemaining: parseFloat(data.size_remaining || data.sizeRemaining || '0')
       };
     } catch (error: any) {
-      console.error(`❌ 查询订单状态失败 (${orderId}):`, error.message);
+      // 404 通常表示订单已完全成交并从活跃订单列表中移除
+      if (error.response && error.response.status === 404) {
+        console.log(`   ℹ️  订单不在活跃列表（可能已完全成交）: ${orderId.substring(0, 16)}...`);
+        return { status: 'MATCHED', sizeFilled: 0, sizeRemaining: 0 };
+      }
+      
+      console.error(`❌ 查询订单状态失败 (${orderId.substring(0, 16)}...):`, error.message);
       return { status: 'UNKNOWN', sizeFilled: 0, sizeRemaining: 0 };
     }
   }
