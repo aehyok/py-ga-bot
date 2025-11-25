@@ -151,6 +151,17 @@ export class TradingEngine {
         console.log(`   选项: ${token.outcome}`);
         console.log(`   价格: $${price.toFixed(4)} (${(price * 100).toFixed(2)}%)`);
 
+        // Check if current time is within the trading window
+        const now = new Date();
+        const currentMinute = now.getUTCMinutes() % 15; // Get minute within 15-min window (0-14)
+        
+        if (currentMinute < this.config.minTradeMinute) {
+          // Within monitoring window but not trading window
+          console.log(`   ⏳ 当前时间: 第${currentMinute}分钟 (需等待到第${this.config.minTradeMinute}分钟)`);
+          console.log(`   📊 仅监测模式：暂不下单，继续监控`);
+          continue; // Skip to next token without marking as processed
+        }
+
         // Mark as processed to prevent duplicate orders
         this.processedTokens.add(tokenKey);
         console.log(`   🔒 已标记为已处理，不会重复下单`);
@@ -299,7 +310,7 @@ export class TradingEngine {
   private async checkOrderStatuses(): Promise<void> {
     // 1. 检查是否需要恢复市场扫描 (市场已结束)
     // 无论是否有活跃订单，只要市场结束了，就应该恢复扫描
-    console.log(`DEBUG: checkOrderStatuses paused=${this.marketScanningPaused} endTime=${this.currentMarketEndTime?.toISOString()} active=${this.activeOrders.size}`);
+    // console.log(`DEBUG: checkOrderStatuses paused=${this.marketScanningPaused} endTime=${this.currentMarketEndTime?.toISOString()} active=${this.activeOrders.size}`);
     
     if (this.marketScanningPaused && this.currentMarketEndTime) {
       const now = new Date();

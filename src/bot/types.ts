@@ -75,6 +75,7 @@ export interface BotConfig {
   // Market filtering options
   eventSlug?: string; // Specific event slug to monitor
   marketKeywords?: string[]; // Keywords to filter markets
+  minTradeMinute: number; // Minimum minute within 15-min window to start placing orders (0-14)
 }
 
 // Gamma API Response Types

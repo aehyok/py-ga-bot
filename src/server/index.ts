@@ -44,6 +44,7 @@ const config: BotConfig = {
   marketKeywords: process.env.MARKET_KEYWORDS 
     ? process.env.MARKET_KEYWORDS.split(',').map(k => k.trim()).filter(k => k.length > 0)
     : undefined,
+  minTradeMinute: parseInt(process.env.MIN_TRADE_MINUTE || '0'),
 };
 
 // Initialize trading engine
