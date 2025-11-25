@@ -92,7 +92,7 @@ export class PolymarketClient {
           this.config.eventSlug = currentSlug;
         }
         
-        console.log(`🔍 根据 slug 获取特定事件: ${currentSlug}`);
+        // console.log(`🔍 根据 slug 获取特定事件: ${currentSlug}`);
         const eventMarkets = await this.fetchEventBySlug(currentSlug);
         markets = eventMarkets;
       } else {
@@ -136,7 +136,7 @@ export class PolymarketClient {
         });
         console.log(`📊 根据关键词过滤后得到 ${markets.length} 个市场`);
       } else {
-        console.log(`📊 已获取 ${markets.length} 个活跃市场`);
+        // console.log(`📊 已获取 ${markets.length} 个活跃市场`);
       }
 
       // Fetch real-time prices for all tokens in the filtered markets
@@ -193,7 +193,7 @@ export class PolymarketClient {
       
       const results = await Promise.all(pricePromises);
       const successCount = results.filter(r => r.success).length;
-      console.log(`   ✓ 成功获取 ${successCount}/${tokenIds.length} 个 Token 的价格`);
+      // console.log(`   ✓ 成功获取 ${successCount}/${tokenIds.length} 个 Token 的价格`);
       
     } catch (error: any) {
       console.error('❌ 批量获取价格失败:', error.message);
@@ -227,21 +227,21 @@ export class PolymarketClient {
         return markets;
       }
 
-      console.log(`\n📊 BTC Market 详情:`);
-      console.log(`   标题: ${event.title || event.slug}`);
+      // console.log(`\n📊 BTC Market 详情:`);
+      // console.log(`   标题: ${event.title || event.slug}`);
       const beijingTime = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
       console.log(`   ⏰ 查询时间: ${beijingTime} (UTC+8)`);
 
       for (const gammaMarket of event.markets) {
-        console.log(`\n🔍 检查市场: ${gammaMarket.question || 'Unknown'}`);
-        console.log(`   Active: ${gammaMarket.active}, Closed: ${gammaMarket.closed}`);
+        // console.log(`\n🔍 检查市场: ${gammaMarket.question || 'Unknown'}`);
+        // console.log(`   Active: ${gammaMarket.active}, Closed: ${gammaMarket.closed}`);
         
         if (!gammaMarket.active) {
-          console.log(`   ⚠️ 跳过：市场未激活`);
+          // console.log(`   ⚠️ 跳过：市场未激活`);
           continue;
         }
         if (gammaMarket.closed) {
-          console.log(`   ⚠️ 跳过：市场已关闭`);
+          // console.log(`   ⚠️ 跳过：市场已关闭`);
           continue;
         }
 
@@ -308,7 +308,7 @@ export class PolymarketClient {
                 }));
                 markets.push(market);
               } else {
-                console.log(`   ⚠️ convertGammaMarket 返回 null (子市场)`);
+                // console.log(`   ⚠️ convertGammaMarket 返回 null (子市场)`);
               }
             }
           } else {
@@ -323,7 +323,7 @@ export class PolymarketClient {
               }));
               markets.push(market);
             } else {
-              console.log(`   ⚠️ convertGammaMarket 返回 null`);
+              // console.log(`   ⚠️ convertGammaMarket 返回 null`);
             }
           }
         } else {
@@ -387,9 +387,9 @@ export class PolymarketClient {
       
       // Also try to extract from tokens array
       const tokens = marketData.tokens || [];
-      console.log(`🔍 DEBUG convertGammaMarket: tokens.length = ${tokens.length}`);
+      // console.log(`🔍 DEBUG convertGammaMarket: tokens.length = ${tokens.length}`);
       if (tokens.length > 0) {
-        console.log(`🔍 DEBUG convertGammaMarket: tokens[0] =`, JSON.stringify(tokens[0]));
+        // console.log(`🔍 DEBUG convertGammaMarket: tokens[0] =`, JSON.stringify(tokens[0]));
       }
       
       if (tokenIds.length === 0 && tokens.length > 0) {
@@ -408,9 +408,9 @@ export class PolymarketClient {
         winner: token.winner || false,
       }));
       
-      console.log(`🔍 DEBUG convertGammaMarket: marketTokens.length = ${marketTokens.length}`);
+      // console.log(`🔍 DEBUG convertGammaMarket: marketTokens.length = ${marketTokens.length}`);
       if (marketTokens.length > 0) {
-        console.log(`🔍 DEBUG convertGammaMarket: marketTokens[0] =`, JSON.stringify(marketTokens[0]));
+        // console.log(`🔍 DEBUG convertGammaMarket: marketTokens[0] =`, JSON.stringify(marketTokens[0]));
       }
 
       return {
@@ -482,7 +482,15 @@ export class PolymarketClient {
       // Try to extract order ID from various possible fields
       order.orderId = response.orderID || response.id || response.orderId || 
                       response.order_id || response.messageHash || 'CREATED';
-      order.status = 'SUBMITTED';  // Changed from FILLED - order is submitted, not yet matched
+      
+      // Check if order was immediately matched
+      if (response.status === 'matched' || response.status === 'MATCHED') {
+        order.status = 'FILLED';
+        console.log(`   ✅ 订单立即成交！`);
+      } else {
+        order.status = 'SUBMITTED';
+      }
+      
       order.hash = response.transactionHash || response.hash || response.txHash;
 
       console.log(`✅ 订单提交成功！订单号: ${order.orderId}`);
@@ -501,7 +509,7 @@ export class PolymarketClient {
   }
 
   /**
-   * Get order status from CLOB API
+   * Get order status from CLOB API using the SDK client (handles authentication)
    */
   async getOrderStatus(orderId: string): Promise<{
     status: 'LIVE' | 'MATCHED' | 'CANCELLED' | 'UNKNOWN';
@@ -509,25 +517,47 @@ export class PolymarketClient {
     sizeRemaining: number;
   }> {
     try {
-      const response = await axios.get(
-        `${this.config.clobApiUrl}/order/${orderId}`,
-        { timeout: 5000 }
-      );
+      // 使用 SDK 的 getOrder 方法，它会自动处理认证
+      const orderData = await (this.clobClient as any).getOrder({ id: orderId });
       
-      const data = response.data;
-      return {
-        status: data.status || 'UNKNOWN',
-        sizeFilled: parseFloat(data.size_matched || data.sizeFilled || '0'),
-        sizeRemaining: parseFloat(data.size_remaining || data.sizeRemaining || '0')
-      };
-    } catch (error: any) {
-      // 404 通常表示订单已完全成交并从活跃订单列表中移除
-      if (error.response && error.response.status === 404) {
-        console.log(`   ℹ️  订单不在活跃列表（可能已完全成交）: ${orderId.substring(0, 16)}...`);
-        return { status: 'MATCHED', sizeFilled: 0, sizeRemaining: 0 };
+      if (!orderData) {
+        return { status: 'UNKNOWN', sizeFilled: 0, sizeRemaining: 0 };
       }
       
-      console.error(`❌ 查询订单状态失败 (${orderId.substring(0, 16)}...):`, error.message);
+      // SDK 返回的字段可能与 API 文档略有不同
+      const currentStatus = orderData.status || orderData.order_current_status || 'UNKNOWN';
+      const sizeMatched = parseFloat(orderData.size_matched || orderData.sizeMatched || '0');
+      const originalSize = parseFloat(orderData.original_size || orderData.originalSize || orderData.size || '0');
+      
+      // 将API状态映射到我们的状态类型
+      let status: 'LIVE' | 'MATCHED' | 'CANCELLED' | 'UNKNOWN' = 'UNKNOWN';
+      if (currentStatus === 'MATCHED' || currentStatus === 'CONFIRMED' || currentStatus === 'MINED') {
+        status = 'MATCHED';
+      } else if (currentStatus === 'LIVE' || currentStatus === 'PENDING') {
+        status = 'LIVE';
+      } else if (currentStatus === 'CANCELLED' || currentStatus === 'FAILED') {
+        status = 'CANCELLED';
+      }
+      
+      return {
+        status,
+        sizeFilled: sizeMatched,
+        sizeRemaining: Math.max(0, originalSize - sizeMatched)
+      };
+    } catch (error: any) {
+      // 404 可能表示订单不存在或已经完成很久
+      if (error.response && error.response.status === 404) {
+        // 静默处理404
+        return { status: 'UNKNOWN', sizeFilled: 0, sizeRemaining: 0 };
+      }
+      
+      // 其他错误打印日志
+      if (error.response && error.response.status === 401) {
+        console.error(`❌ 订单查询认证失败 (${orderId.substring(0, 16)}...): 请检查API凭证`);
+      } else {
+        console.error(`❌ 查询订单状态失败 (${orderId.substring(0, 16)}...):`, error.message);
+      }
+      
       return { status: 'UNKNOWN', sizeFilled: 0, sizeRemaining: 0 };
     }
   }

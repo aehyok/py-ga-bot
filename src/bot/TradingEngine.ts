@@ -39,7 +39,7 @@ export class TradingEngine {
       console.log(`   - 关键词过滤: ${this.config.marketKeywords.join(', ')}`);
     }
     if (!this.config.eventSlug && (!this.config.marketKeywords || this.config.marketKeywords.length === 0)) {
-      console.log(`   - 监控范围: 所有活跃市场`);
+      // console.log(`   - 监控范围: 所有活跃市场`);
     }
   }
 
@@ -99,18 +99,19 @@ export class TradingEngine {
         const secondsLeft = Math.floor((timeLeft % 60000) / 1000);
         console.log(`   ⏰ 当前市场将在 ${minutesLeft}分${secondsLeft}秒 后结束`);
         console.log(`   📍 当前市场: ${this.currentMarketSlug || 'Unknown'}`);
+        console.log(`   🔍 DEBUG: paused=${this.marketScanningPaused}, endTime=${this.currentMarketEndTime.toISOString()}, now=${now.toISOString()}`);
       }
       return;
     }
 
     try {
-      console.log('\n🔍 扫描市场中...');
+      // console.log('\n🔍 扫描市场中...');
       const markets = await this.client.fetchActiveMarkets();
 
       let opportunitiesFound = 0;
 
       for (const market of markets) {
-        const opportunities = this.checkMarket(market);
+        const opportunities = await this.checkMarket(market);
         opportunitiesFound += opportunities;
       }
 
@@ -125,7 +126,7 @@ export class TradingEngine {
   /**
    * Check a market for trading opportunities
    */
-  private checkMarket(market: Market): number {
+  private async checkMarket(market: Market): Promise<number> {
     let opportunities = 0;
 
     for (const token of market.tokens) {
@@ -150,26 +151,32 @@ export class TradingEngine {
         console.log(`   选项: ${token.outcome}`);
         console.log(`   价格: $${price.toFixed(4)} (${(price * 100).toFixed(2)}%)`);
 
-        // 创建待确认订单
-        const pendingOrder: PendingOrder = {
-          id: `${market.id}_${token.token_id}_${Date.now()}`,
-          timestamp: Date.now(),
-          marketId: market.id,
-          question: market.question,
-          tokenId: token.token_id,
-          outcome: token.outcome,
-          price,
-          size: this.config.tradeSize,
-          status: 'PENDING',
-        };
-        
-        this.pendingOrders.push(pendingOrder);
-        console.log(`   ⏳ 已添加到待确认队列（ID: ${pendingOrder.id.substring(0, 16)}...）`);
-        console.log(`   📋 待确认订单总数: ${this.getPendingOrders().length}`);
-
         // Mark as processed to prevent duplicate orders
         this.processedTokens.add(tokenKey);
         console.log(`   🔒 已标记为已处理，不会重复下单`);
+
+        if (this.config.autoTradingEnabled) {
+          // Auto-trading enabled: execute trade immediately
+          console.log(`   🤖 自动交易模式：立即执行订单`);
+          await this.executeTrade(market, token);
+        } else {
+          // Manual mode: add to pending queue for user approval
+          const pendingOrder: PendingOrder = {
+            id: `${market.id}_${token.token_id}_${Date.now()}`,
+            timestamp: Date.now(),
+            marketId: market.id,
+            question: market.question,
+            tokenId: token.token_id,
+            outcome: token.outcome,
+            price,
+            size: this.config.tradeSize,
+            status: 'PENDING',
+          };
+          
+          this.pendingOrders.push(pendingOrder);
+          console.log(`   ⏳ 已添加到待确认队列（ID: ${pendingOrder.id.substring(0, 16)}...）`);
+          console.log(`   📋 待确认订单总数: ${this.getPendingOrders().length}`);
+        }
       } else if (price >= 1.0) {
         // Log when we skip 100% options
         console.log(`\n⚠️ 跳过 100% 选项（市场已确定）:`);
@@ -191,13 +198,67 @@ export class TradingEngine {
     try {
       console.log(`   💰 下单: 以 $${price.toFixed(4)} 价格购买 ${this.config.tradeSize} shares`);
       
-      const order = await this.client.createBuyOrder(
+      const result = await this.client.createBuyOrder(
         token.token_id,
         price,
         this.config.tradeSize
       );
 
-      const success = order.status === 'FILLED';
+      const success = result.status === 'SUBMITTED' || result.status === 'FILLED';
+      
+      // Add to tracking queue if order was submitted successfully
+      if (success && result.orderId) {
+        // Only track order if we have a real order ID
+        if (result.orderId !== 'CREATED') {
+          this.activeOrders.set(result.orderId, result);
+          console.log(`   🔍 订单已加入追踪队列，订单号: ${result.orderId}`);
+        } else {
+          console.log(`   ⚠️ 订单已提交但无法获取订单号（可能是API响应问题）`);
+          console.log(`   ℹ️  无法追踪订单状态，但将暂停市场扫描避免重复下单`);
+        }
+        
+        // Pause market scanning to avoid duplicate orders
+        this.marketScanningPaused = true;
+        
+        // Get market end time
+        try {
+          const markets = await this.client.fetchActiveMarkets();
+          const foundMarket = markets.find(m => m.id === market.id);
+          if (foundMarket && foundMarket.endDate) {
+            this.currentMarketEndTime = new Date(foundMarket.endDate);
+            this.currentMarketSlug = this.config.eventSlug;
+            console.log(`   ⏸️ 已暂停市场扫描，专注追踪订单`);
+            console.log(`   ⏰ 当前市场结束时间: ${this.currentMarketEndTime.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+          } else {
+            // Fallback: calculate based on 15-minute interval
+            const now = new Date();
+            const minutes = now.getUTCMinutes();
+            const roundedMinutes = Math.floor(minutes / 15) * 15;
+            const nextInterval = new Date(now);
+            nextInterval.setUTCMinutes(roundedMinutes + 15);
+            nextInterval.setUTCSeconds(0);
+            nextInterval.setUTCMilliseconds(0);
+            this.currentMarketEndTime = nextInterval;
+            this.currentMarketSlug = this.config.eventSlug;
+            console.log(`   ⏸️ 已暂停市场扫描，专注追踪订单`);
+            console.log(`   ⏰ 预计市场结束时间: ${this.currentMarketEndTime.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+          }
+        } catch (error: any) {
+          console.error(`   ⚠️ 无法获取市场结束时间，使用默认15分钟周期: ${error.message}`);
+          // Fallback: calculate based on 15-minute interval
+          const now = new Date();
+          const minutes = now.getUTCMinutes();
+          const roundedMinutes = Math.floor(minutes / 15) * 15;
+          const nextInterval = new Date(now);
+          nextInterval.setUTCMinutes(roundedMinutes + 15);
+          nextInterval.setUTCSeconds(0);
+          nextInterval.setUTCMilliseconds(0);
+          this.currentMarketEndTime = nextInterval;
+          this.currentMarketSlug = this.config.eventSlug;
+          console.log(`   ⏸️ 已暂停市场扫描，专注追踪订单`);
+          console.log(`   ⏰ 预计市场结束时间: ${this.currentMarketEndTime.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+        }
+      }
       
       this.logTrade({
         timestamp: Date.now(),
@@ -206,15 +267,15 @@ export class TradingEngine {
         outcome: token.outcome,
         price,
         size: this.config.tradeSize,
-        action: success ? `订单成交（ID: ${order.orderId}）` : `订单失败: ${order.error}`,
+        action: success ? `自动交易订单已提交（ID: ${result.orderId}）` : `订单失败: ${result.error}`,
         success,
-        error: order.error,
+        error: result.error,
       });
 
       if (success) {
-        console.log(`   ✅ 交易执行成功！`);
+        console.log(`   ✅ 交易执行成功！订单号: ${result.orderId}`);
       } else {
-        console.log(`   ❌ 交易失败: ${order.error}`);
+        console.log(`   ❌ 交易失败: ${result.error}`);
       }
     } catch (error: any) {
       console.error(`   ❌ 交易执行错误:`, error);
@@ -236,22 +297,37 @@ export class TradingEngine {
    * Check status of all active orders
    */
   private async checkOrderStatuses(): Promise<void> {
-    // 如果没有活跃订单，检查是否需要恢复市场扫描
-    if (this.activeOrders.size === 0) {
-      if (this.marketScanningPaused && this.currentMarketEndTime) {
-        const now = new Date();
-        if (now >= this.currentMarketEndTime) {
-          console.log('\n🔄 当前市场已结束，恢复市场扫描以监控下一个市场');
-          this.marketScanningPaused = false;
-          this.currentMarketEndTime = undefined;
-          this.currentMarketSlug = undefined;
-          // 立即触发一次市场扫描
-          await this.scanMarkets();
-        }
+    // 1. 检查是否需要恢复市场扫描 (市场已结束)
+    // 无论是否有活跃订单，只要市场结束了，就应该恢复扫描
+    console.log(`DEBUG: checkOrderStatuses paused=${this.marketScanningPaused} endTime=${this.currentMarketEndTime?.toISOString()} active=${this.activeOrders.size}`);
+    
+    if (this.marketScanningPaused && this.currentMarketEndTime) {
+      const now = new Date();
+      console.log(`DEBUG: checking time: now=${now.toISOString()} endTime=${this.currentMarketEndTime.toISOString()} diff=${now.getTime() - this.currentMarketEndTime.getTime()}`);
+      
+      if (now >= this.currentMarketEndTime) {
+        console.log('\n🔄 当前市场已结束，恢复市场扫描以监控下一个市场');
+        this.marketScanningPaused = false;
+        this.currentMarketEndTime = undefined;
+        this.currentMarketSlug = undefined;
+        // 立即触发一次市场扫描
+        await this.scanMarkets();
+      } else if (this.activeOrders.size > 0) {
+         // 只有在追踪订单时才在这里显示倒计时
+         // 如果没有订单，scanMarkets 会负责显示倒计时
+         const timeLeft = this.currentMarketEndTime.getTime() - now.getTime();
+         const minutesLeft = Math.floor(timeLeft / 60000);
+         const secondsLeft = Math.floor((timeLeft % 60000) / 1000);
+         console.log(`\n⏳ 订单追踪中，当前市场剩余 ${minutesLeft}分${secondsLeft}秒`);
       }
+    }
+
+    // 2. 如果没有活跃订单，直接返回
+    if (this.activeOrders.size === 0) {
       return;
     }
 
+    // 3. 检查活跃订单状态
     console.log(`\n🔍 检查 ${this.activeOrders.size} 个活跃订单的状态...`);
 
     for (const [orderId, order] of this.activeOrders) {
@@ -303,24 +379,6 @@ export class TradingEngine {
         order.lastChecked = Date.now();
       } catch (error: any) {
         console.error(`   ❌ 检查订单 ${orderId.substring(0, 16)} 状态失败:`, error.message);
-      }
-    }
-    
-    // 检查订单处理完成后，是否需要恢复市场扫描
-    if (this.activeOrders.size === 0 && this.marketScanningPaused && this.currentMarketEndTime) {
-      const now = new Date();
-      if (now >= this.currentMarketEndTime) {
-        console.log('\n🔄 所有订单已处理且市场已结束，恢复市场扫描');
-        this.marketScanningPaused = false;
-        this.currentMarketEndTime = undefined;
-        this.currentMarketSlug = undefined;
-        // 立即触发一次市场扫描
-        await this.scanMarkets();
-      } else {
-        const timeLeft = this.currentMarketEndTime.getTime() - now.getTime();
-        const minutesLeft = Math.floor(timeLeft / 60000);
-        const secondsLeft = Math.floor((timeLeft % 60000) / 1000);
-        console.log(`\n⏳ 订单已全部处理，等待当前市场结束（剩余 ${minutesLeft}分${secondsLeft}秒）`);
       }
     }
   }

@@ -39,13 +39,13 @@ export function getCurrentBtc15MinSlug(): string {
   // Generate slug
   const slug = `btc-updown-15m-${timestamp}`;
   
-  console.log(`🕐 当前时间: ${now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
-  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-  console.log(`🌍 UTC+8 时间: ${beijingTime}`);
-  const intervalStartBeijing = new Date(roundedDate.getTime() + 8 * 60 * 60 * 1000);
-  console.log(`⏰ 15分钟区间起点: ${intervalStartBeijing.toISOString().substring(11, 19)} (UTC+8)`);
-  console.log(`📝 生成的 Slug: ${slug}`);
-  console.log(`🔢 时间戳: ${timestamp}`);
+  // console.log(`🕐 当前时间: ${now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+  // const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
+  // console.log(`🌍 UTC+8 时间: ${beijingTime}`);
+  // const intervalStartBeijing = new Date(roundedDate.getTime() + 8 * 60 * 60 * 1000);
+  // console.log(`⏰ 15分钟区间起点: ${intervalStartBeijing.toISOString().substring(11, 19)} (UTC+8)`);
+  // console.log(`📝 生成的 Slug: ${slug}`);
+  // console.log(`🔢 时间戳: ${timestamp}`);
   
   return slug;
 }

@@ -10,22 +10,22 @@ console.log('\n' + '='.repeat(70));
 console.log('🔍 重新分析时间戳');
 console.log('='.repeat(70));
 
-console.log('\n📅 当前时间:');
-console.log(`  北京时间: ${now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
-console.log(`  UTC 时间: ${now.toISOString()}`);
-console.log(`  UTC 小时:分钟: ${now.getUTCHours()}:${String(now.getUTCMinutes()).padStart(2, '0')}`);
+// console.log('\n📅 当前时间:');
+// console.log(`  北京时间: ${now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+// console.log(`  UTC 时间: ${now.toISOString()}`);
+// console.log(`  UTC 小时:分钟: ${now.getUTCHours()}:${String(now.getUTCMinutes()).padStart(2, '0')}`);
 
-console.log('\n📅 时间戳 1763827200:');
-console.log(`  UTC 时间: ${date1.toISOString()}`);
+// console.log('\n📅 时间戳 1763827200:');
+// console.log(`  UTC 时间: ${date1.toISOString()}`);
 console.log(`  北京时间: ${date1.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
-console.log(`  UTC 小时:分钟: ${date1.getUTCHours()}:${String(date1.getUTCMinutes()).padStart(2, '0')}`);
+// console.log(`  UTC 小时:分钟: ${date1.getUTCHours()}:${String(date1.getUTCMinutes()).padStart(2, '0')}`);
 
-console.log('\n📅 时间戳 1763826300:');
-console.log(`  UTC 时间: ${date2.toISOString()}`);
-console.log(`  北京时间: ${date2.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
-console.log(`  UTC 小时:分钟: ${date2.getUTCHours()}:${String(date2.getUTCMinutes()).padStart(2, '0')}`);
+// console.log('\n📅 时间戳 1763826300:');
+// console.log(`  UTC 时间: ${date2.toISOString()}`);
+// console.log(`  北京时间: ${date2.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
+// console.log(`  UTC 小时:分钟: ${date2.getUTCHours()}:${String(date2.getUTCMinutes()).padStart(2, '0')}`);
 
-console.log('\n💡 逻辑分析:');
+// console.log('\n💡 逻辑分析:');
 const currentUtcMinutes = now.getUTCMinutes();
 const currentUtcHours = now.getUTCHours();
 
