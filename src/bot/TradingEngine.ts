@@ -204,14 +204,30 @@ export class TradingEngine {
    * Execute a trade
    */
   private async executeTrade(market: Market, token: { token_id: string; outcome: string; price: string }): Promise<void> {
-    const price = parseFloat(token.price);
+    const marketPrice = parseFloat(token.price);
+    
+    // Calculate order price based on market price
+    let orderPrice: number;
+    if (marketPrice >= 0.95 && marketPrice <= 0.98) {
+      // Market price is between 95% and 98%, order at 0.98
+      orderPrice = 0.98;
+      console.log(`   📊 市场价格: $${marketPrice.toFixed(4)} (${(marketPrice * 100).toFixed(2)}%)`);
+      console.log(`   💰 下单价格: $${orderPrice.toFixed(4)} (${(orderPrice * 100).toFixed(2)}%)`);
+    } else if (marketPrice > 0.98) {
+      // Market price is above 98%, order at 0.99
+      orderPrice = 0.99;
+      console.log(`   📊 市场价格: $${marketPrice.toFixed(4)} (${(marketPrice * 100).toFixed(2)}%)`);
+      console.log(`   💰 下单价格: $${orderPrice.toFixed(4)} (${(orderPrice * 100).toFixed(2)}%)`);
+    } else {
+      // Fallback (should not happen with current thresholds)
+      orderPrice = marketPrice;
+      console.log(`   💰 下单: 以 $${orderPrice.toFixed(4)} 价格购买 ${this.config.tradeSize} shares`);
+    }
     
     try {
-      console.log(`   💰 下单: 以 $${price.toFixed(4)} 价格购买 ${this.config.tradeSize} shares`);
-      
       const result = await this.client.createBuyOrder(
         token.token_id,
-        price,
+        orderPrice,
         this.config.tradeSize
       );
 
@@ -276,7 +292,7 @@ export class TradingEngine {
         marketId: market.id,
         question: market.question,
         outcome: token.outcome,
-        price,
+        price: orderPrice,
         size: this.config.tradeSize,
         action: success ? `自动交易订单已提交（ID: ${result.orderId}）` : `订单失败: ${result.error}`,
         success,
@@ -295,7 +311,7 @@ export class TradingEngine {
         marketId: market.id,
         question: market.question,
         outcome: token.outcome,
-        price,
+        price: marketPrice,
         size: this.config.tradeSize,
         action: '执行交易时出错',
         success: false,
@@ -339,6 +355,16 @@ export class TradingEngine {
           this.activeOrders.clear();
           console.log(`✅ 所有订单已处理，订单追踪队列已清空`);
         }
+        
+        // Try to claim rewards from resolved markets
+        // Note: This requires the condition ID from the market data
+        // For now, we log that rewards should be checked manually
+        console.log(`\n🎁 检查待领取奖励...`);
+        console.log(`   ℹ️  自动领取功能需要市场的 condition ID`);
+        console.log(`   ℹ️  如需手动领取，请访问 Polymarket 网站`);
+        
+        // TODO: Implement automatic reward claiming when condition ID is available
+        // Example: await this.client.redeemWinnings(conditionId);
         
         this.marketScanningPaused = false;
         this.currentMarketEndTime = undefined;

@@ -457,10 +457,10 @@ export class PolymarketClient {
       console.log(`📝 创建订单: 以 $${price.toFixed(4)} 价格购买 ${size} shares，代币 ${tokenId.substring(0, 10)}...`);
       console.log(`🔍 DEBUG: tokenId = ${tokenId}, price = ${price}, size = ${size}`);
       
-      // Prepare order parameters - using hardcoded price 99 as requested
+      // Prepare order parameters
       const orderParams = {
         tokenID: tokenId,
-        price: 0.98,  // Hardcoded to 99 per user request
+        price: price,  // Use the actual price passed in
         side: 'BUY' as const,
         size: size,
       };
@@ -585,6 +585,73 @@ export class PolymarketClient {
         return { success: false, message: '认证失败' };
       } else {
         console.error(`❌ 取消订单失败: ${orderId.substring(0, 16)}...`, error.message);
+        return { success: false, message: error.message || '未知错误' };
+      }
+    }
+  }
+
+  /**
+   * Redeem winnings from resolved markets
+   * @param conditionId The condition ID of the resolved market
+   * @param collateralToken The collateral token address (USDC on Polygon)
+   * @returns Success status and message
+   */
+  async redeemWinnings(conditionId: string, collateralToken: string = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'): Promise<{ success: boolean; message: string; txHash?: string }> {
+    try {
+      console.log(`🎁 尝试领取奖励...`);
+      console.log(`   Condition ID: ${conditionId.substring(0, 16)}...`);
+      
+      // CTF contract address on Polygon
+      const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+      
+      // CTF contract ABI - only redeemPositions function
+      const CTF_ABI = [
+        'function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint[] calldata indexSets) external'
+      ];
+      
+      // Create contract instance
+      const { Contract, providers } = await import('ethers');
+      const provider = new providers.JsonRpcProvider('https://polygon-rpc.com');
+      const walletWithProvider = this.wallet.connect(provider);
+      const ctfContract = new Contract(CTF_ADDRESS, CTF_ABI, walletWithProvider);
+      
+      // Parameters for redemption
+      const parentCollectionId = '0x0000000000000000000000000000000000000000000000000000000000000000'; // HASH_ZERO
+      const indexSets = [1, 2]; // Standard for binary markets
+      
+      console.log(`   📝 正在调用 CTF 合约...`);
+      
+      // Call redeemPositions
+      const tx = await ctfContract.redeemPositions(
+        collateralToken,
+        parentCollectionId,
+        conditionId,
+        indexSets
+      );
+      
+      console.log(`   ⏳ 交易已提交，等待确认...`);
+      console.log(`   交易哈希: ${tx.hash}`);
+      
+      const receipt = await tx.wait();
+      
+      console.log(`   ✅ 奖励已领取！`);
+      console.log(`   Gas 使用: ${receipt.gasUsed.toString()}`);
+      
+      return { 
+        success: true, 
+        message: '奖励领取成功', 
+        txHash: tx.hash 
+      };
+    } catch (error: any) {
+      // Handle various error cases
+      if (error.message && error.message.includes('insufficient funds')) {
+        console.error(`   ❌ 领取奖励失败: 余额不足支付 Gas`);
+        return { success: false, message: '余额不足支付 Gas' };
+      } else if (error.message && error.message.includes('no positions to redeem')) {
+        console.log(`   ℹ️  没有可领取的奖励`);
+        return { success: false, message: '没有可领取的奖励' };
+      } else {
+        console.error(`   ❌ 领取奖励失败:`, error.message);
         return { success: false, message: error.message || '未知错误' };
       }
     }
