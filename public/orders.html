@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>订单查询 - Polymarket Trading Bot</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Additional styles for orders page */
+    .filters {
+      background: var(--bg-card);
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .filter-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .filter-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.875rem;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      transition: var(--transition);
+    }
+
+    .filter-group input:focus,
+    .filter-group select:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .stats-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 250px;
+      margin-top: 1rem;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    thead th {
+      background: var(--accent-gradient);
+      color: white;
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    tbody tr:hover {
+      background: var(--bg-hover);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-created {
+      background: rgba(33, 150, 243, 0.1);
+      color: #2196f3;
+      border: 1px solid #2196f3;
+    }
+
+    .badge-submitted {
+      background: rgba(255, 152, 0, 0.1);
+      color: #ff9800;
+      border: 1px solid #ff9800;
+    }
+
+    .badge-updated {
+      background: rgba(156, 39, 176, 0.1);
+      color: #9c27b0;
+      border: 1px solid #9c27b0;
+    }
+
+    .badge-filled {
+      background: rgba(76, 175, 80, 0.1);
+      color: #4caf50;
+      border: 1px solid #4caf50;
+    }
+
+    .badge-cancelled {
+      background: rgba(244, 67, 54, 0.1);
+      color: #f44336;
+      border: 1px solid #f44336;
+    }
+
+    .badge-failed {
+      background: rgba(233, 30, 99, 0.1);
+      color: #e91e63;
+      border: 1px solid #e91e63;
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .filter-group {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-container {
+        height: 200px;
+      }
+
+      table {
+        font-size: 0.75rem;
+      }
+
+      thead th,
+      tbody td {
+        padding: 0.5rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">📊</div>
+        <h1>订单查询</h1>
+      </div>
+      <div class="status-badge">
+        <a href="/" style="color: var(--text-primary); text-decoration: none; font-weight: 600;">← 返回首页</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <div>
+          <label>开始日期</label>
+          <input type="date" id="startDate">
+        </div>
+        <div>
+          <label>结束日期</label>
+          <input type="date" id="endDate">
+        </div>
+        <div>
+          <label>事件类型</label>
+          <select id="eventType">
+            <option value="">全部</option>
+            <option value="ORDER_CREATED">订单创建</option>
+            <option value="ORDER_SUBMITTED">订单提交</option>
+            <option value="ORDER_UPDATED">订单更新</option>
+            <option value="ORDER_FILLED">订单成交</option>
+            <option value="ORDER_CANCELLED">订单取消</option>
+            <option value="ORDER_FAILED">订单失败</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="loadData()">🔍 查询</button>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid-3">
+      <div class="stat-card">
+        <div class="stat-label">总订单数</div>
+        <div class="stat-value" id="totalOrders">-</div>
+        <div class="stat-change">全部记录</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">事件类型分布</div>
+        <div class="chart-container">
+          <canvas id="eventTypeChart"></canvas>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">每日订单趋势</div>
+        <div class="chart-container">
+          <canvas id="dailyChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders Table -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">📋 订单列表</h2>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>事件类型</th>
+              <th>订单号</th>
+              <th>市场ID</th>
+              <th>选项</th>
+              <th>价格</th>
+              <th>数量</th>
+              <th>状态</th>
+              <th>市场结果</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTable">
+            <tr>
+              <td colspan="9" style="text-align: center; padding: 2rem;">加载中...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let eventTypeChart, dailyChart;
+
+    function init() {
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 7);
+
+      document.getElementById('endDate').valueAsDate = today;
+      document.getElementById('startDate').valueAsDate = weekAgo;
+
+      loadData();
+    }
+
+    async function loadData() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const eventType = document.getElementById('eventType').value;
+
+      try {
+        const statsParams = new URLSearchParams();
+        if (startDate) statsParams.append('startDate', startDate);
+        if (endDate) statsParams.append('endDate', endDate);
+
+        const statsRes = await fetch(`/api/orders/stats?${statsParams}`);
+        const statsData = await statsRes.json();
+
+        if (statsData.success) {
+          updateStats(statsData.data);
+        }
+
+        const ordersParams = new URLSearchParams();
+        if (startDate) ordersParams.append('startDate', startDate);
+        if (endDate) ordersParams.append('endDate', endDate);
+        if (eventType) ordersParams.append('eventType', eventType);
+        ordersParams.append('limit', '100');
+
+        const ordersRes = await fetch(`/api/orders?${ordersParams}`);
+        const ordersData = await ordersRes.json();
+
+        if (ordersData.success) {
+          updateTable(ordersData.data);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      }
+    }
+
+    function updateStats(stats) {
+      document.getElementById('totalOrders').textContent = stats.totalOrders;
+
+      const eventTypeCtx = document.getElementById('eventTypeChart').getContext('2d');
+      if (eventTypeChart) eventTypeChart.destroy();
+
+      eventTypeChart = new Chart(eventTypeCtx, {
+        type: 'pie',
+        data: {
+          labels: stats.byEventType.map(item => getEventTypeName(item.event_type)),
+          datasets: [{
+            data: stats.byEventType.map(item => item.count),
+            backgroundColor: ['#2196f3', '#ff9800', '#9c27b0', '#4caf50', '#f44336', '#e91e63']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, color: '#a0aec0' } }
+          }
+        }
+      });
+
+      const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+      if (dailyChart) dailyChart.destroy();
+
+      dailyChart = new Chart(dailyCtx, {
+        type: 'line',
+        data: {
+          labels: stats.dailyStats.map(item => item.date).reverse(),
+          datasets: [{
+            label: '订单数',
+            data: stats.dailyStats.map(item => item.count).reverse(),
+            borderColor: 'rgb(102, 126, 234)',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { font: { size: 10 }, color: '#718096' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            x: { ticks: { font: { size: 10 }, color: '#718096' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          }
+        }
+      });
+    }
+
+    function updateTable(orders) {
+      const tbody = document.getElementById('ordersTable');
+
+      if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">暂无数据</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = orders.map(order => `
+        <tr>
+          <td>${new Date(order.created_at).toLocaleString('zh-CN', { hour12: false })}</td>
+          <td><span class="badge badge-${order.event_type.toLowerCase().split('_')[1]}">${getEventTypeName(order.event_type)}</span></td>
+          <td style="font-family: monospace; font-size: 0.8rem;">${order.order_id ? order.order_id.substring(0, 16) + '...' : '-'}</td>
+          <td style="font-family: monospace; font-size: 0.8rem;">${order.market_id.substring(0, 16)}...</td>
+          <td>${order.outcome || '-'}</td>
+          <td>${order.price > 0 ? '$' + order.price.toFixed(4) : '-'}</td>
+          <td>${order.size > 0 ? order.size : '-'}</td>
+          <td>${order.status || '-'}</td>
+          <td><strong style="color: var(--accent-primary);">${order.market_result || '-'}</strong></td>
+        </tr>
+      `).join('');
+    }
+
+    function getEventTypeName(type) {
+      const names = {
+        'ORDER_CREATED': '创建',
+        'ORDER_SUBMITTED': '提交',
+        'ORDER_UPDATED': '更新',
+        'ORDER_FILLED': '成交',
+        'ORDER_CANCELLED': '取消',
+        'ORDER_FAILED': '失败'
+      };
+      return names[type] || type;
+    }
+
+    init();
+  </script>
+</body>
+
+</html>

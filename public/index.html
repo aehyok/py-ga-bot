@@ -16,6 +16,8 @@
         <h1>AI Trading Bot</h1>
       </div>
       <div class="status-badge">
+        <a href="/orders.html" style="margin-right: 20px; color: white; text-decoration: none; font-weight: 600;">📊
+          订单查询</a>
         <span class="status-indicator" id="statusIndicator"></span>
         <span id="statusText">Initializing...</span>
       </div>
@@ -49,6 +51,21 @@
         <div class="stat-label">Wallet Address</div>
         <div class="stat-value" id="walletAddress" style="font-size: 1rem; word-break: break-all;">-</div>
         <div class="stat-change">Connected</div>
+      </div>
+    </div>
+
+    <!-- Quick Access: Order Query -->
+    <div class="card"
+      style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; cursor: pointer;"
+      onclick="window.location.href='/orders.html'">
+      <div style="padding: 30px;">
+        <div style="font-size: 48px; margin-bottom: 10px;">📊</div>
+        <h2 style="color: white; margin-bottom: 10px;">订单查询与统计</h2>
+        <p style="opacity: 0.9; margin-bottom: 20px;">查看订单历史、市场结果和统计数据</p>
+        <div
+          style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 30px; border-radius: 8px; font-weight: 600;">
+          点击进入 →
+        </div>
       </div>
     </div>
 

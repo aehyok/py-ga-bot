@@ -1,5 +1,6 @@
 import { PolymarketClient } from './PolymarketClient';
 import { BotConfig, Market, Order, TradeLog, PendingOrder } from './types';
+import { orderLogger } from '../utils/orderLogger';
 
 export class TradingEngine {
   private client: PolymarketClient;
@@ -15,6 +16,7 @@ export class TradingEngine {
   private marketScanningPaused: boolean = false;
   private currentMarketEndTime?: Date;
   private currentMarketSlug?: string;
+  private hasFilledOrders: boolean = false; // Track if any orders were filled in current market
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -224,6 +226,15 @@ export class TradingEngine {
       console.log(`   💰 下单: 以 $${orderPrice.toFixed(4)} 价格购买 ${this.config.tradeSize} shares`);
     }
     
+    // Log order creation
+    orderLogger.logOrderCreated({
+      marketId: market.id,
+      outcome: token.outcome,
+      price: orderPrice,
+      size: this.config.tradeSize,
+      details: `Market price: $${marketPrice.toFixed(4)}`,
+    });
+    
     try {
       const result = await this.client.createBuyOrder(
         token.token_id,
@@ -301,11 +312,37 @@ export class TradingEngine {
 
       if (success) {
         console.log(`   ✅ 交易执行成功！订单号: ${result.orderId}`);
+        // Log order submission
+        orderLogger.logOrderSubmitted({
+          orderId: result.orderId || 'UNKNOWN',
+          marketId: market.id,
+          outcome: token.outcome,
+          price: orderPrice,
+          size: this.config.tradeSize,
+          status: result.status || 'SUBMITTED',
+        });
       } else {
         console.log(`   ❌ 交易失败: ${result.error}`);
+        // Log order failure
+        orderLogger.logOrderFailed({
+          marketId: market.id,
+          outcome: token.outcome,
+          price: orderPrice,
+          size: this.config.tradeSize,
+          error: result.error || 'Unknown error',
+        });
       }
     } catch (error: any) {
       console.error(`   ❌ 交易执行错误:`, error);
+      // Log order failure
+      orderLogger.logOrderFailed({
+        marketId: market.id,
+        outcome: token.outcome,
+        price: orderPrice,
+        size: this.config.tradeSize,
+        error: error.message || 'Unexpected error',
+      });
+      
       this.logTrade({
         timestamp: Date.now(),
         marketId: market.id,
@@ -345,6 +382,12 @@ export class TradingEngine {
               const result = await this.client.cancelOrder(orderId);
               if (result.success) {
                 console.log(`   ✅ 已取消订单: ${orderId.substring(0, 16)}...`);
+                // Log order cancellation
+                orderLogger.logOrderCancelled({
+                  orderId: orderId,
+                  marketId: order.marketId || 'UNKNOWN',
+                  reason: '市场已结束，自动取消',
+                });
               } else {
                 console.log(`   ⚠️ 取消失败: ${orderId.substring(0, 16)}... - ${result.message}`);
               }
@@ -354,6 +397,33 @@ export class TradingEngine {
           // Clear all active orders
           this.activeOrders.clear();
           console.log(`✅ 所有订单已处理，订单追踪队列已清空`);
+        }
+        
+        // Query and record market result only if we had filled orders
+        if (this.currentMarketSlug && this.hasFilledOrders) {
+          try {
+            console.log(`\n🔍 查询市场结果: ${this.currentMarketSlug}`);
+            const markets = await this.client.fetchActiveMarkets();
+            
+            if (markets.length > 0) {
+              const market = markets[0]; // Get the first market (current market)
+              
+              // Find the winning outcome
+              const winningToken = market.tokens.find(token => token.winner === true);
+              
+              if (winningToken) {
+                console.log(`🏆 市场结果: ${winningToken.outcome} 获胜！`);
+                // Update all orders for this market with the result
+                orderLogger.updateMarketResult(market.id, winningToken.outcome);
+              } else {
+                console.log(`   ℹ️  市场尚未确定获胜结果`);
+              }
+            }
+          } catch (error: any) {
+            console.error(`   ⚠️ 查询市场结果失败:`, error.message);
+          }
+        } else if (!this.hasFilledOrders) {
+          console.log(`\n ℹ️  本周期无成交订单，跳过结果查询`);
         }
         
         // Try to claim rewards from resolved markets
@@ -369,6 +439,7 @@ export class TradingEngine {
         this.marketScanningPaused = false;
         this.currentMarketEndTime = undefined;
         this.currentMarketSlug = undefined;
+        this.hasFilledOrders = false; // Reset for next market
         // 立即触发一次市场扫描
         await this.scanMarkets();
       } else if (this.activeOrders.size > 0) {
@@ -405,6 +476,17 @@ export class TradingEngine {
           console.log(`   成交数量: ${order.sizeFilled} shares`);
           console.log(`   成交价格: $${order.price.toFixed(4)}`);
           
+          // Log order filled
+          orderLogger.logOrderFilled({
+            orderId: orderId,
+            marketId: order.marketId || 'UNKNOWN',
+            outcome: order.outcome || 'Unknown',
+            sizeFilled: order.sizeFilled,
+          });
+          
+          // Mark that we have filled orders for this market
+          this.hasFilledOrders = true;
+          
           this.activeOrders.delete(orderId);
           
           // Log to trade history
@@ -424,10 +506,19 @@ export class TradingEngine {
           order.sizeFilled = status.sizeFilled;
           order.sizeRemaining = status.sizeRemaining;
           
-          console.log(`\n⚡ 订单部分成交`);
+          console.log(`\n🔸 订单部分成交`);
           console.log(`   订单号: ${orderId.substring(0, 16)}...`);
-          console.log(`   已成交: ${status.sizeFilled}/${order.size} shares`);
+          console.log(`   已成交: ${status.sizeFilled} shares`);
           console.log(`   剩余: ${status.sizeRemaining} shares`);
+          
+          // Log order update
+          orderLogger.logOrderUpdated({
+            orderId: orderId,
+            marketId: order.marketId || 'UNKNOWN',
+            status: 'PARTIALLY_FILLED',
+            sizeFilled: status.sizeFilled,
+            sizeRemaining: status.sizeRemaining,
+          });
         } else if (status.status === 'CANCELLED') {
           // Order cancelled
           order.status = 'CANCELLED';

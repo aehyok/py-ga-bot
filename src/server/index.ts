@@ -3,6 +3,8 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import '../utils/logger'; // Initialize logger
+import { orderLogger } from '../utils/orderLogger'; // Import orderLogger
 import { TradingEngine } from '../bot/TradingEngine';
 import { BotConfig } from '../bot/types';
 import { getCurrentBtc15MinSlug } from '../bot/slugGenerator';
@@ -92,6 +94,58 @@ app.get('/api/markets', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: markets,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Query orders with filters
+ */
+app.get('/api/orders', (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, eventType, limit, offset } = req.query;
+    
+    const orders = orderLogger.queryOrders({
+      startDate: startDate as string,
+      endDate: endDate as string,
+      eventType: eventType as string,
+      limit: limit ? parseInt(limit as string) : undefined,
+      offset: offset ? parseInt(offset as string) : undefined,
+    });
+    
+    res.json({
+      success: true,
+      data: orders,
+      count: orders.length,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Get orders statistics
+ */
+app.get('/api/orders/stats', (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const stats = orderLogger.getStatisticsByTimeRange(
+      startDate as string,
+      endDate as string
+    );
+    
+    res.json({
+      success: true,
+      data: stats,
     });
   } catch (error: any) {
     res.status(500).json({
