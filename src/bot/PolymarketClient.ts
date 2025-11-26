@@ -572,19 +572,25 @@ export class PolymarketClient {
       // Use CLOB client to cancel the order
       await (this.clobClient as any).cancelOrder({ id: orderId });
       
-      console.log(`✅ 订单已取消: ${orderId.substring(0, 16)}...`);
+      // Only log success if no error was thrown
+      console.log(`   ✅ 订单已取消: ${orderId.substring(0, 16)}...`);
       return { success: true, message: '订单已成功取消' };
     } catch (error: any) {
       // Handle various error cases
       if (error.response && error.response.status === 404) {
         // Order not found or already cancelled/completed
-        console.log(`⚠️ 订单不存在或已完成: ${orderId.substring(0, 16)}...`);
+        console.log(`   ⚠️ 订单不存在或已完成: ${orderId.substring(0, 16)}...`);
         return { success: false, message: '订单不存在或已完成' };
       } else if (error.response && error.response.status === 401) {
-        console.error(`❌ 取消订单认证失败: ${orderId.substring(0, 16)}...`);
+        console.error(`   ❌ 取消订单认证失败: ${orderId.substring(0, 16)}...`);
         return { success: false, message: '认证失败' };
+      } else if (error.response && (error.response.status === 502 || error.response.status === 503)) {
+        // Server errors - API is down or overloaded
+        console.error(`   ⚠️ Polymarket API 暂时不可用 (${error.response.status}): ${orderId.substring(0, 16)}...`);
+        console.error(`   ℹ️  订单可能已取消，请稍后手动确认`);
+        return { success: false, message: `API 服务器错误 (${error.response.status})` };
       } else {
-        console.error(`❌ 取消订单失败: ${orderId.substring(0, 16)}...`, error.message);
+        console.error(`   ❌ 取消订单失败: ${orderId.substring(0, 16)}...`, error.message);
         return { success: false, message: error.message || '未知错误' };
       }
     }
